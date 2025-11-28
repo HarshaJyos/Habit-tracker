@@ -70,6 +70,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
     type: "task" | "session" | "journal";
     item: any;
   } | null>(null);
+    const isRoutineplaygroundEnabled = routines.some((r) => r);
 
   React.useEffect(() => {
     const interval = setInterval(() => setNow(new Date()), 60000);
@@ -697,6 +698,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
         <div className="h-16"></div>
+        {isRoutineplaygroundEnabled && <div className="h-8"></div>}
       </div>
 
       {/* Activity Details Popup - Full Screen Blur Overlay */}

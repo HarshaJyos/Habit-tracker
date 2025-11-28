@@ -721,6 +721,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                 </div>
             </div>
         </div>
+        <div className='h-20'></div>
 
         {/* Mobile Floating Controls */}
         {!selectedBlock && (

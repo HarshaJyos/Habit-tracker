@@ -879,6 +879,7 @@ export const HabitModule: React.FC<HabitModuleProps> = ({
               )}
             </div>
           </div>
+          <div className="h-16"></div>
         </div>
       )}
 
