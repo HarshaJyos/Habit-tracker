@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { ViewState } from '../types';
 import { LayoutDashboard, ListTodo, PlayCircle, BookOpen, Calendar as CalendarIcon, StickyNote, Trash2, Brain, Briefcase, CheckCircle, ZoomIn, ZoomOut, RotateCcw, Minus, Plus } from 'lucide-react';
@@ -11,6 +10,31 @@ interface LayoutProps {
   uiScale: number;
   onScaleChange: (scale: number) => void;
 }
+
+// Icon Mapping for all views
+const VIEW_ICONS: Record<string, any> = {
+  dashboard: LayoutDashboard,
+  dump: Brain,
+  trash: Trash2,
+  calendar: CalendarIcon,
+  tasks: ListTodo,
+  projects: Briefcase,
+  habits: CheckCircle,
+  routines: PlayCircle,
+  notes: StickyNote,
+  journal: BookOpen,
+  settings: LayoutDashboard, // Fallback
+  activity: LayoutDashboard // Fallback
+};
+
+// Mobile Navigation Stacks
+const MOBILE_NAV_GROUPS = [
+  { id: 'dash_group', views: ['dashboard'] as ViewState[] },
+  { id: 'capture_group', views: ['dump', 'trash'] as ViewState[] },
+  { id: 'plan_group', views: ['calendar', 'tasks', 'projects'] as ViewState[] },
+  { id: 'habit_group', views: ['habits', 'routines'] as ViewState[] },
+  { id: 'record_group', views: ['notes', 'journal'] as ViewState[] },
+];
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewChange, miniPlayer, uiScale, onScaleChange }) => {
   const navItems = [
@@ -27,7 +51,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
   ];
 
   // Views that should take up 100% width/height without padding
-  const isFullWidthView = currentView === 'calendar' || currentView === 'notes' || currentView === 'projects' || currentView === 'habits';
+  const isFullWidthView = currentView === 'calendar' || currentView === 'notes' || currentView === 'projects' || currentView === 'habits' || currentView === 'dump';
 
   const handleZoom = (direction: 'in' | 'out') => {
       const step = 0.1;
@@ -36,6 +60,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
   };
 
   const resetZoom = () => onScaleChange(1);
+
+  // Mobile Nav Logic
+  const handleMobileNavClick = (views: ViewState[]) => {
+      if (views.includes(currentView)) {
+          // Cycle to next view in stack
+          const currentIndex = views.indexOf(currentView);
+          const nextIndex = (currentIndex + 1) % views.length;
+          onViewChange(views[nextIndex]);
+      } else {
+          // Activate first view in stack
+          onViewChange(views[0]);
+      }
+  };
 
   return (
     // Apply Zoom to the wrapper. We must compensate height/width to prevent clipping when zoomed in.
@@ -48,7 +85,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
         }}
     >
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 p-6 shadow-[2px_0_24px_-12px_rgba(0,0,0,0.05)] z-30 relative shrink-0 h-full">
+      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-200 p-6 shadow-[2px_0_24px_-12px_rgba(0,0,0,0.05)] z-[70] relative shrink-0 h-full">
         <div className="flex items-center gap-3 mb-8 shrink-0">
           <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center">
             <span className="font-bold text-white">L</span>
@@ -119,26 +156,35 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, onViewCha
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-40 h-16 shrink-0">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-[70] h-16 shrink-0">
         {miniPlayer && (
             <div className="absolute bottom-full left-0 right-0 p-2 bg-gradient-to-t from-white to-transparent pointer-events-none">
                 <div className="pointer-events-auto">{miniPlayer}</div>
             </div>
         )}
         <div className="flex justify-around items-center h-full px-2 relative">
-          {navItems.slice(0, 5).map((item) => (
-             <button
-              key={item.id}
-              onClick={() => onViewChange(item.id as ViewState)}
-              className={`flex flex-col items-center justify-center p-1 rounded-xl transition-colors ${
-                currentView === item.id 
-                  ? 'text-black' 
-                  : 'text-gray-400 hover:text-gray-600'
-              }`}
-            >
-              <item.icon size={22} strokeWidth={currentView === item.id ? 2.5 : 2} />
-            </button>
-          ))}
+          {MOBILE_NAV_GROUPS.map((group) => {
+             const isActive = group.views.includes(currentView);
+             
+             // If active, show the icon of the current view.
+             // If inactive, show the icon of the FIRST view in the stack.
+             const viewToRender = isActive ? currentView : group.views[0];
+             const IconComponent = VIEW_ICONS[viewToRender] || LayoutDashboard;
+
+             return (
+                <button
+                  key={group.id}
+                  onClick={() => handleMobileNavClick(group.views)}
+                  className={`flex flex-col items-center justify-center w-full h-full ${
+                    isActive
+                      ? 'text-black' 
+                      : 'text-gray-400'
+                  }`}
+                >
+                  <IconComponent size={24} strokeWidth={isActive ? 2.5 : 2} />
+                </button>
+             );
+          })}
         </div>
       </nav>
     </div>

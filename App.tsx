@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
@@ -45,6 +42,26 @@ const INITIAL_ROUTINES: Routine[] = [
   },
 ];
 
+// Worker Code Inlined to prevent cross-origin issues
+const TIMER_WORKER_CODE = `
+let timerId = null;
+
+self.onmessage = (e) => {
+  if (e.data === 'start') {
+    if (!timerId) {
+      timerId = setInterval(() => {
+        postMessage('tick');
+      }, 1000);
+    }
+  } else if (e.data === 'stop') {
+    if (timerId) {
+      clearInterval(timerId);
+      timerId = null;
+    }
+  }
+};
+`;
+
 const loadState = <T,>(key: string, fallback: T): T => {
     try {
         const saved = localStorage.getItem(key);
@@ -86,9 +103,10 @@ const App: React.FC = () => {
   });
   
   const [journalPrompt, setJournalPrompt] = useState<string>('');
-  const [journalDefaultTitle, setJournalDefaultTitle] = useState<string>('');
-  const [journalDefaultTags, setJournalDefaultTags] = useState<string[]>([]);
   const [convertingDump, setConvertingDump] = useState<Dump | null>(null);
+
+  // Web Worker Ref
+  const timerWorkerRef = useRef<Worker | null>(null);
 
   // --- Persistence Effects ---
   useEffect(() => { localStorage.setItem(STORAGE_KEYS.TASKS, JSON.stringify(tasks)); }, [tasks]);
@@ -113,15 +131,45 @@ const App: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [activeRoutine]);
 
+  // --- Worker Timer Logic ---
   useEffect(() => {
-    let interval: number;
-    if (activeRoutine && playerState.isPlaying) {
-      interval = window.setInterval(() => {
-        setPlayerState(prev => ({ ...prev, timeElapsedInStep: prev.timeElapsedInStep + 1 }));
-      }, 1000);
+    if (typeof Worker !== 'undefined') {
+        try {
+            // Create a Blob from the inlined worker code
+            const blob = new Blob([TIMER_WORKER_CODE], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            
+            timerWorkerRef.current = new Worker(workerUrl);
+            
+            timerWorkerRef.current.onmessage = (e) => {
+              if (e.data === 'tick') {
+                setPlayerState(prev => {
+                   if (!prev.isPlaying) return prev;
+                   return { ...prev, timeElapsedInStep: prev.timeElapsedInStep + 1 };
+                });
+              }
+            };
+            
+            // Cleanup: terminate worker and revoke URL
+            return () => {
+                timerWorkerRef.current?.terminate();
+                URL.revokeObjectURL(workerUrl);
+            };
+        } catch (e) {
+            console.error("Failed to create worker:", e);
+        }
     }
-    return () => clearInterval(interval);
+  }, []); // Run once on mount
+
+  // Control Worker based on playing state
+  useEffect(() => {
+    if (activeRoutine && playerState.isPlaying) {
+      timerWorkerRef.current?.postMessage('start');
+    } else {
+      timerWorkerRef.current?.postMessage('stop');
+    }
   }, [activeRoutine, playerState.isPlaying]);
+
 
   // --- Reminder System ---
   useEffect(() => {
@@ -530,7 +578,6 @@ const App: React.FC = () => {
   const handleRoutineFinish = (routine: Routine, logs: StepLog[]) => {
       const actualDuration = logs.reduce((acc, l) => acc + l.actualDuration, 0);
       setActiveRoutine(null);
-      // Removed automatic journal entry prompt for separate logging
       
       const newSession: FocusSession = {
         id: Date.now().toString(),
@@ -604,6 +651,64 @@ const App: React.FC = () => {
           }));
       }
   };
+  
+  // Handler to adjust the time of the current step
+  const handleTimeAdjustment = (seconds: number) => {
+      setPlayerState(prev => {
+          // If subtracting time (making it shorter), we add to elapsed.
+          // If adding time (making it longer), we subtract from elapsed.
+          // Note: The UI usually presents +5m as "Add 5 mins to timer" (so reduce elapsed).
+          // And -5m as "Remove 5 mins" (so increase elapsed).
+          
+          let newElapsed = prev.timeElapsedInStep - seconds;
+          // Don't let elapsed go below 0
+          if (newElapsed < 0) newElapsed = 0;
+          
+          return { ...prev, timeElapsedInStep: newElapsed };
+      });
+  };
+  
+  // Handler to remove a step from the active sequence (Drag to Library)
+  const handleRemoveStep = (index: number) => {
+      // If we are removing the last step, we should just exit to dashboard to avoid empty state
+      if (playerState.steps.length <= 1) {
+          setActiveRoutine(null);
+          setCurrentView('dashboard');
+          return;
+      }
+
+      setPlayerState(prev => {
+          const newSteps = [...prev.steps];
+          newSteps.splice(index, 1);
+          
+          // If we removed the current step, we technically stay on the same index (which is now the next step),
+          // but we should reset elapsed time.
+          // If we removed a step before current, current index decreases.
+          // If we removed a step after current, current index stays same.
+          
+          let newIndex = prev.currentStepIndex;
+          let newElapsed = prev.timeElapsedInStep;
+
+          if (index < prev.currentStepIndex) {
+              newIndex = prev.currentStepIndex - 1;
+          } else if (index === prev.currentStepIndex) {
+              // Reset for the new step that took this place
+              newElapsed = 0;
+          }
+          
+          // Double check bounds
+          if (newIndex >= newSteps.length) {
+              newIndex = newSteps.length - 1;
+          }
+
+          return {
+              ...prev,
+              steps: newSteps,
+              currentStepIndex: newIndex,
+              timeElapsedInStep: newElapsed
+          };
+      });
+  };
 
   const exitPlayer = () => { setActiveRoutine(null); setCurrentView('dashboard'); };
 
@@ -615,7 +720,6 @@ const App: React.FC = () => {
       let updatedTask = { ...task, isCompleted: newStatus };
       if (newStatus) {
           updatedTask.completedAt = Date.now();
-          // Removed automatic journal entry creation here
       } else { updatedTask.completedAt = undefined; }
       return prevTasks.map(t => t.id === taskId ? updatedTask : t);
     });
@@ -723,6 +827,8 @@ const App: React.FC = () => {
               onExit={exitPlayer}
               onSave={savePausedRoutine}
               onToggleSubtask={toggleTaskSubtask}
+              onAdjustTime={handleTimeAdjustment}
+              onStepRemove={handleRemoveStep}
           />
       )}
 
@@ -745,82 +851,72 @@ const App: React.FC = () => {
             onUpdateTask={handleUpdateTask} focusSessions={focusSessions}
             onStartTask={startTaskFocus} onScheduleRoutine={scheduleRoutine} 
             onStartRoutine={startRoutine} onUpdateRoutine={handleUpdateRoutine}
-            onScheduleHabit={scheduleHabit}
-            onUnschedule={unscheduleItem}
+            onScheduleHabit={scheduleHabit} onUnschedule={unscheduleItem}
         />
       )}
       {currentView === 'tasks' && (
         <TaskModule 
-          tasks={tasks} projects={activeProjects} convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
-          onAddTask={(task) => { handleAddTask(task); if (convertingDump) { handleHardDelete(convertingDump.id, 'dump'); setConvertingDump(null); alert('Idea converted to Task!'); }}}
-          onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onStartTask={startTaskFocus} onToggleTask={toggleTask}
-          onArchiveTask={(id) => handleArchive(id, 'task')} onUnarchiveTask={(id) => handleUnarchive(id, 'task')}
-          autoTrigger={triggerTaskModal} onAutoTriggerHandled={() => setTriggerTaskModal(false)}
+            tasks={tasks} projects={activeProjects}
+            onAddTask={handleAddTask} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onStartTask={startTaskFocus} 
+            onToggleTask={toggleTask}
+            convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
+            onArchiveTask={(id) => handleArchive(id, 'task')} onUnarchiveTask={(id) => handleUnarchive(id, 'task')}
+            autoTrigger={triggerTaskModal} onAutoTriggerHandled={() => setTriggerTaskModal(false)}
         />
-      )}
-      {currentView === 'projects' && (
-          <ProjectModule 
-            projects={projects} tasks={tasks} focusSessions={focusSessions} convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
-            onAddProject={(project) => { handleAddProject(project); if (convertingDump) { handleHardDelete(convertingDump.id, 'dump'); setConvertingDump(null); alert('Idea converted to Project!'); }}}
-            onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject} onArchiveProject={(id) => handleArchive(id, 'project')} onUnarchiveProject={(id) => handleUnarchive(id, 'project')}
-            onAddTask={handleAddTask} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onStartTask={startTaskFocus} onToggleTask={toggleTask}
-            onReorder={handleReorderProjects}
-          />
-      )}
-      {currentView === 'habits' && (
-          <HabitModule 
-            habits={habits} 
-            onAddHabit={handleAddHabit}
-            onUpdateHabit={handleUpdateHabit}
-            onDeleteHabit={handleDeleteHabit}
-            onArchiveHabit={(id) => handleArchive(id, 'habit')}
-            onUnarchiveHabit={(id) => handleUnarchive(id, 'habit')}
-            onUpdateProgress={handleUpdateHabitProgress}
-            onStartFocus={startHabitFocus}
-            onReorder={handleReorderHabits}
-          />
       )}
       {currentView === 'routines' && (
         <RoutineModule 
-          routines={routines} habits={activeHabits} pausedRoutines={pausedRoutines} 
-          onAddRoutine={handleAddRoutine} onUpdateRoutine={handleUpdateRoutine} onDeleteRoutine={handleDeleteRoutine}
-          onStartRoutine={startRoutine} onResumeRoutine={resumePausedRoutine} onDiscardPaused={(id) => setPausedRoutines(prev => prev.filter(p => p.id !== id))}
-          tasks={activeTasks} onArchiveRoutine={(id) => handleArchive(id, 'routine')} onUnarchiveRoutine={(id) => handleUnarchive(id, 'routine')}
-          onReorder={handleReorderRoutines}
+            routines={routines} habits={activeHabits} pausedRoutines={pausedRoutines}
+            onAddRoutine={handleAddRoutine} onUpdateRoutine={handleUpdateRoutine} onDeleteRoutine={handleDeleteRoutine} onStartRoutine={startRoutine} onResumeRoutine={resumePausedRoutine} onDiscardPaused={(id) => setPausedRoutines(prev => prev.filter(p => p.id !== id))}
+            tasks={activeTasks} onArchiveRoutine={(id) => handleArchive(id, 'routine')} onUnarchiveRoutine={(id) => handleUnarchive(id, 'routine')} onReorder={handleReorderRoutines}
         />
       )}
       {currentView === 'notes' && (
         <NotesModule 
-          notes={notes} convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
-          onAddNote={(note) => { handleAddNote(note); if (convertingDump) { handleHardDelete(convertingDump.id, 'dump'); setConvertingDump(null); alert('Idea converted to Note!'); }}}
-          onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote} onArchiveNote={(id) => handleArchive(id, 'note')} onUnarchiveNote={(id) => handleUnarchive(id, 'note')}
-          onReorder={handleReorderNotes}
+            notes={notes} onAddNote={handleAddNote} onUpdateNote={handleUpdateNote} onDeleteNote={handleDeleteNote}
+            convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
+            onArchiveNote={(id) => handleArchive(id, 'note')} onUnarchiveNote={(id) => handleUnarchive(id, 'note')} onReorder={handleReorderNotes}
         />
       )}
       {currentView === 'journal' && (
         <JournalModule 
-          entries={journalEntries} convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
-          onAddEntry={(entry) => { handleAddJournalEntry(entry); if (convertingDump) { handleHardDelete(convertingDump.id, 'dump'); setConvertingDump(null); alert('Idea converted to Journal Entry!'); }}}
-          onUpdateEntry={handleUpdateJournalEntry} onDeleteEntry={handleDeleteJournalEntry} initialContent={journalPrompt} initialTitle={journalDefaultTitle} initialTags={journalDefaultTags}
-          clearPrompt={() => { setJournalPrompt(''); setJournalDefaultTitle(''); setJournalDefaultTags([]); setConvertingDump(null); }}
-          onArchiveEntry={(id) => handleArchive(id, 'journal')} onUnarchiveEntry={(id) => handleUnarchive(id, 'journal')}
-          autoTrigger={triggerJournalModal} onAutoTriggerHandled={() => setTriggerJournalModal(false)}
+            entries={journalEntries} onAddEntry={handleAddJournalEntry} onUpdateEntry={handleUpdateJournalEntry} onDeleteEntry={handleDeleteJournalEntry}
+            clearPrompt={() => setJournalPrompt('')} initialContent={journalPrompt}
+            convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
+            onArchiveEntry={(id) => handleArchive(id, 'journal')} onUnarchiveEntry={(id) => handleUnarchive(id, 'journal')}
+            autoTrigger={triggerJournalModal} onAutoTriggerHandled={() => setTriggerJournalModal(false)}
         />
-      )}
-      {currentView === 'dump' && (
-          <BrainDumpModule 
-            dumps={dumps} onAddDump={handleAddDump} onDeleteDump={handleDeleteDump}
-            onConvertToTask={convertDumpToTask} onConvertToNote={convertDumpToNote} onConvertToJournal={convertDumpToJournal} onConvertToProject={convertDumpToProject}
-            onArchiveDump={(id) => handleArchive(id, 'dump')} onUnarchiveDump={(id) => handleUnarchive(id, 'dump')}
-            autoTrigger={triggerDumpModal} onAutoTriggerHandled={() => setTriggerDumpModal(false)}
-          />
       )}
       {currentView === 'trash' && (
         <RestoreModule 
-           tasks={tasks} routines={routines} journalEntries={journalEntries} notes={notes} dumps={dumps} projects={projects}
-           onRestore={handleRestore} onDeleteForever={handleHardDelete}
-           onExport={handleExport} onImport={handleImport} onReset={handleResetApp}
+            tasks={tasks} routines={routines} journalEntries={journalEntries} notes={notes} dumps={dumps} projects={projects} habits={habits}
+            onRestore={handleRestore} onDeleteForever={handleHardDelete}
+            onExport={handleExport} onImport={handleImport} onReset={handleResetApp}
         />
+      )}
+      {currentView === 'dump' && (
+        <BrainDumpModule 
+            dumps={dumps} onAddDump={handleAddDump} onDeleteDump={handleDeleteDump} 
+            onConvertToTask={convertDumpToTask} onConvertToNote={convertDumpToNote} onConvertToJournal={convertDumpToJournal} onConvertToProject={convertDumpToProject}
+            onArchiveDump={(id) => handleArchive(id, 'dump')} onUnarchiveDump={(id) => handleUnarchive(id, 'dump')}
+            autoTrigger={triggerDumpModal} onAutoTriggerHandled={() => setTriggerDumpModal(false)}
+        />
+      )}
+      {currentView === 'projects' && (
+          <ProjectModule 
+            projects={projects} tasks={tasks} focusSessions={focusSessions}
+            onAddProject={handleAddProject} onUpdateProject={handleUpdateProject} onDeleteProject={handleDeleteProject}
+            convertingDump={convertingDump} onClearConvertingDump={() => setConvertingDump(null)}
+            onArchiveProject={(id) => handleArchive(id, 'project')} onUnarchiveProject={(id) => handleUnarchive(id, 'project')}
+            onAddTask={handleAddTask} onUpdateTask={handleUpdateTask} onDeleteTask={handleDeleteTask} onStartTask={startTaskFocus} onToggleTask={toggleTask} onReorder={handleReorderProjects}
+          />
+      )}
+      {currentView === 'habits' && (
+          <HabitModule 
+            habits={habits} onAddHabit={handleAddHabit} onUpdateHabit={handleUpdateHabit} onDeleteHabit={handleDeleteHabit}
+            onArchiveHabit={(id) => handleArchive(id, 'habit')} onUnarchiveHabit={(id) => handleUnarchive(id, 'habit')} onUpdateProgress={handleUpdateHabitProgress}
+            onStartFocus={startHabitFocus} onReorder={handleReorderHabits}
+          />
       )}
     </Layout>
   );

@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { JournalEntry, Mood, Dump } from '../types';
 import { Save, Smile, Frown, Meh, Annoyed, Laugh, Calendar, Image as ImageIcon, X, Trash2, Edit2, ArrowLeft, Check, Plus, Filter, PenLine, Archive, RefreshCcw, Search } from 'lucide-react';
@@ -269,7 +268,7 @@ export const JournalModule: React.FC<JournalModuleProps> = ({
 
   return (
     <div className="w-full space-y-8 pb-20 px-4 md:px-0">
-      <div className="flex flex-col md:flex-row justify-between items-center border-b border-gray-200 pb-4 gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-4 gap-4">
          <div>
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Journal</h2>
             {showArchived && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider mt-1 inline-block">Archived View</span>}
@@ -294,9 +293,9 @@ export const JournalModule: React.FC<JournalModuleProps> = ({
              </button>
              <button 
                 onClick={handleOpenNewEntry}
-                className="bg-black text-white px-5 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 transition-colors flex items-center gap-2 whitespace-nowrap"
+                className="bg-black text-white px-3 md:px-5 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 transition-colors flex items-center gap-2 whitespace-nowrap"
              >
-                 <PenLine size={18} /> Create Log
+                 <PenLine size={18} /> <span className="hidden md:inline">Create Log</span>
              </button>
          </div>
       </div>
@@ -404,7 +403,7 @@ export const JournalModule: React.FC<JournalModuleProps> = ({
 
         {/* Creation Modal (Same as before) */}
         {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
                 <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
                      <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{convertingDump ? 'Convert to Log' : 'New Entry'}</h2>

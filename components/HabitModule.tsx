@@ -1,5 +1,3 @@
-
-
 import * as React from 'react';
 import { Habit, HabitFrequencyType, HabitGoalType, HabitType, Reminder } from '../types';
 import { 
@@ -367,15 +365,15 @@ export const HabitModule: React.FC<HabitModuleProps> = ({
           />
       ) : (
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-             <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-center border-b border-gray-200 px-6 py-4 gap-4 bg-white z-10">
+             <div className="flex-shrink-0 flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 px-6 py-4 gap-4 bg-white z-10">
                  <div>
                     <h2 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3"><CheckCircle className="text-black" size={28} /> Habits</h2>
                     {showArchived && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider mt-1 inline-block">Archived View</span>}
-                    {!showArchived && <p className="text-gray-500 mt-1 text-sm md:text-base">Consistency is key. Track your daily progress.</p>}
+                    {!showArchived && <p className="text-gray-500 mt-1 text-sm md:text-base hidden md:block">Consistency is key. Track your daily progress.</p>}
                  </div>
                  <div className="flex items-center gap-2">
                     <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-xl transition-all ${showArchived ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title={showArchived ? "View Active" : "View Archive"}><Archive size={20} /></button>
-                    <button onClick={() => setIsModalOpen(true)} className="bg-black text-white px-5 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 transition-all flex items-center gap-2 text-sm"><Plus size={18} /> New Habit</button>
+                    <button onClick={() => setIsModalOpen(true)} className="bg-black text-white px-3 md:px-5 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 transition-all flex items-center gap-2 text-sm"><Plus size={18} /> <span className="hidden md:inline">New Habit</span></button>
                  </div>
              </div>
              

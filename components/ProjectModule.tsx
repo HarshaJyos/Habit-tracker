@@ -1,5 +1,3 @@
-
-
 import * as React from 'react';
 import { Project, Task, Dump, FocusSession, Note, NoteItem, Priority } from '../types';
 import { Plus, Briefcase, Calendar, Clock, MoreHorizontal, ArrowRight, Archive, RefreshCcw, Edit2, Trash2, X, LayoutGrid, List, CheckCircle2, Play, AlertCircle, CheckSquare, StickyNote, Pin } from 'lucide-react';
@@ -54,16 +52,8 @@ export const ProjectModule: React.FC<ProjectModuleProps> = ({
   
   const currentViewProjects = showArchived ? archivedProjects : activeProjects;
   
-  // Sort: Pinned first, then Priority (High>Med>Low), then User Order (using array order implicitly for DnD)
-  // For DnD to work well, we need to respect the array order but maybe apply filters.
-  // If we want simple manual reordering, we just map currentViewProjects.
-  // But if we want automatic priority sorting, we can't easily drag-reorder arbitrarily.
-  // The user requirement: "add priority input... and sorting can be even done on priority".
-  // This implies sorting is optional or secondary to manual ordering, or overrides it.
-  // Let's implement manual reordering as the primary, and if user wants priority they might filter/sort?
-  // Or: Sort pinned to top, then respect array order.
+  // Sort: Pinned first
   const sortedProjects = React.useMemo(() => {
-     // We sort Pinned first
      return [...currentViewProjects].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
   }, [currentViewProjects]);
 
@@ -210,21 +200,21 @@ export const ProjectModule: React.FC<ProjectModuleProps> = ({
 
   return (
     <div className="w-full h-full p-6 md:p-8 overflow-y-auto custom-scrollbar pb-24">
-      <div className="flex justify-between items-center border-b border-gray-200 pb-4 mb-8">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-gray-200 pb-4 mb-8 gap-4">
          <div>
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
               <Briefcase className="text-black" size={32} /> Projects
             </h2>
             {showArchived && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider mt-1 inline-block">Archived View</span>}
-            {!showArchived && <p className="text-gray-500 mt-1">Manage big goals, deadlines, and related tasks.</p>}
+            {!showArchived && <p className="text-gray-500 mt-1 hidden md:block">Manage big goals, deadlines, and related tasks.</p>}
          </div>
          
          <div className="flex items-center gap-2">
             <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-xl transition-all ${showArchived ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title={showArchived ? "View Active" : "View Archive"}>
                 <Archive size={20} />
             </button>
-            <button onClick={() => openModal()} className="bg-black text-white px-6 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 hover:scale-105 transition-all flex items-center gap-2">
-                <Plus size={18} /> New Project
+            <button onClick={() => openModal()} className="bg-black text-white px-3 md:px-6 py-2.5 rounded-xl font-medium shadow-lg hover:bg-gray-800 hover:scale-105 transition-all flex items-center gap-2">
+                <Plus size={18} /> <span className="hidden md:inline">New Project</span>
             </button>
          </div>
       </div>
@@ -282,7 +272,7 @@ export const ProjectModule: React.FC<ProjectModuleProps> = ({
       </div>
 
       {isModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
               <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl flex flex-col">
                   <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                       <h2 className="text-lg font-bold text-gray-900">{editingProjectId ? 'Edit Project' : 'New Project'}</h2>

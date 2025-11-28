@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Task, Routine, FocusSession, Habit, Project, Priority } from '../types';
 import { ChevronLeft, ChevronRight, Clock, X, Calendar as CalIcon, ZoomIn, ZoomOut, PlayCircle, CheckCircle2, Focus, Layers, PanelLeft, LayoutGrid, ListTodo, Book, Briefcase } from 'lucide-react';
@@ -32,6 +31,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
   
   // Sidebar State
   const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+  const [isDraggingOverLibrary, setIsDraggingOverLibrary] = React.useState(false);
 
   // Zoom / Scaling State
   const [hourHeight, setHourHeight] = React.useState(60); 
@@ -44,7 +44,10 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
 
   // Real-time state
   const [now, setNow] = React.useState(new Date());
+  
+  // Refs for scroll syncing
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const headerContainerRef = React.useRef<HTMLDivElement>(null);
 
   // Derived Data
   const pendingTasks = React.useMemo(() => tasks.filter(t => !t.isCompleted && !t.deletedAt && !t.startTime), [tasks]);
@@ -63,6 +66,16 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
         scrollContainerRef.current.scrollTop = Math.max(0, (minutes - 60) * pxPerMin);
     }
   }, [view, hourHeight]); 
+
+  // Sync horizontal scroll between header and body
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      if (headerContainerRef.current) {
+          // We only want to sync the horizontal scroll
+          // The body container scrolls both X (if overflowing) and Y.
+          // The header only scrolls X.
+          headerContainerRef.current.scrollLeft = e.currentTarget.scrollLeft;
+      }
+  };
 
   // --- Resizing Logic ---
   React.useEffect(() => {
@@ -178,6 +191,11 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
     e.dataTransfer.setData('type', type);
     e.dataTransfer.setData('origin', origin);
     e.dataTransfer.effectAllowed = 'move';
+
+    // Auto-close sidebar on mobile drag to reveal calendar
+    if (origin === 'sidebar' && window.innerWidth < 768) {
+        setIsSidebarOpen(false);
+    }
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -265,8 +283,12 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
 
   const handleDropOnLibrary = (e: React.DragEvent) => {
       e.preventDefault();
+      setIsDraggingOverLibrary(false);
       const id = e.dataTransfer.getData('id');
       const type = e.dataTransfer.getData('type') as 'task' | 'routine' | 'habit';
+      const origin = e.dataTransfer.getData('origin');
+      
+      if (origin === 'sidebar') return; // Don't unschedule items already in sidebar
       if (type === 'habit') return;
       if (onUnschedule) onUnschedule(id, type);
   };
@@ -296,7 +318,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
     return (
         <div className="flex flex-col flex-1 h-full bg-white overflow-hidden">
              <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50/50 flex-shrink-0">
-                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(h => (
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(h => (
                     <div key={h} className="py-2 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">{h}</div>
                 ))}
              </div>
@@ -359,55 +381,72 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
     const pxPerMin = hourHeight / 60;
     const currentMinutes = now.getHours() * 60 + now.getMinutes() + (now.getSeconds() / 60);
     const redLineTop = currentMinutes * pxPerMin;
+    
+    // We want 7 days to fit on desktop, but on mobile allow scrolling or squishing.
+    // Setting min-width allows horizontal scrolling if needed.
+    const minColWidth = view === 'week' ? 'min-w-[60px] md:min-w-0' : 'min-w-0';
+    // Use a robust min-width for the grid container on mobile week view to force scrolling and correct red line width.
+    const gridMinWidth = view === 'week' ? 'min-w-[420px] md:min-w-0' : 'min-w-full';
 
     return (
       <div className="flex flex-col flex-1 min-h-0 bg-white relative">
-        {/* Header (Days) - sticky top */}
+        {/* Header (Days) - sticky top, syncs scroll with body */}
         <div className="flex border-b border-gray-200 bg-white z-20 shrink-0 shadow-[0_2px_4px_-2px_rgba(0,0,0,0.05)]">
-            <div className="w-[50px] md:w-[60px] border-r border-gray-100 shrink-0 bg-gray-50/50"></div>
-            <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}>
-                {days.map(day => {
-                    const isToday = isSameDay(day, now);
-                    return (
-                        <div key={day.toISOString()} className="py-2 md:py-3 px-1 md:px-2 text-center border-r border-gray-100 last:border-0 bg-white group">
-                            <div className={`text-[10px] md:text-[11px] font-bold uppercase mb-1 ${isToday ? 'text-red-500' : 'text-gray-500'}`}>
-                                {day.toLocaleDateString('en-US', { weekday: 'short' })}
+            <div className="w-[50px] md:w-[60px] border-r border-gray-100 shrink-0 bg-gray-50/50 sticky left-0 z-30"></div>
+            <div 
+                ref={headerContainerRef}
+                className="flex-1 overflow-hidden" 
+            >
+                <div className="grid" style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}>
+                    {days.map(day => {
+                        const isToday = isSameDay(day, now);
+                        return (
+                            <div key={day.toISOString()} className={`py-2 md:py-3 px-1 md:px-2 text-center border-r border-gray-100 last:border-0 bg-white group ${minColWidth}`}>
+                                <div className={`text-[10px] md:text-[11px] font-bold uppercase mb-1 ${isToday ? 'text-red-500' : 'text-gray-500'}`}>
+                                    {/* Mobile: Narrow (M, T, W). Desktop: Short (Mon, Tue) */}
+                                    <span className="md:hidden">{day.toLocaleDateString('en-US', { weekday: 'narrow' })}</span>
+                                    <span className="hidden md:inline">{day.toLocaleDateString('en-US', { weekday: 'short' })}</span>
+                                </div>
+                                <div className={`text-lg md:text-2xl font-light w-8 h-8 md:w-10 md:h-10 flex items-center justify-center mx-auto rounded-full transition-all ${isToday ? 'bg-red-500 text-white shadow-md' : 'text-gray-900 group-hover:bg-gray-50'}`}>
+                                    {day.getDate()}
+                                </div>
                             </div>
-                            <div className={`text-lg md:text-2xl font-light w-8 h-8 md:w-10 md:h-10 flex items-center justify-center mx-auto rounded-full transition-all ${isToday ? 'bg-red-500 text-white shadow-md' : 'text-gray-900 group-hover:bg-gray-50'}`}>
-                                {day.getDate()}
-                            </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
         </div>
 
         {/* Scrollable Body */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar relative">
-            {(isSameDay(now, days[0]) || days.length > 1) && (
-                <div className="absolute left-0 right-0 z-40 pointer-events-none flex items-center" style={{ top: `${redLineTop}px` }}>
-                    <div className="w-[50px] md:w-[60px] pr-2 flex justify-end">
-                        <span className="text-[9px] md:text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded shadow-sm">
-                            {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                        </span>
-                    </div>
-                    <div className="w-2.5 h-2.5 bg-red-500 rounded-full -ml-1.5 ring-2 ring-white"></div>
-                    <div className="h-[2px] bg-red-500 flex-1 shadow-[0_1px_2px_rgba(239,68,68,0.3)]"></div>
-                </div>
-            )}
-
+        <div 
+            ref={scrollContainerRef} 
+            onScroll={handleBodyScroll}
+            className="flex-1 overflow-y-auto overflow-x-auto custom-scrollbar relative"
+        >
             <div className="flex" style={{ height: `${24 * hourHeight}px` }}>
-                <div className="w-[50px] md:w-[60px] border-r border-gray-100 bg-white shrink-0 select-none">
+                {/* Time Column - Sticky Left */}
+                <div className="w-[50px] md:w-[60px] border-r border-gray-100 bg-white shrink-0 select-none sticky left-0 z-50">
                     {hours.map(hour => (
-                        <div key={hour} className="relative border-b border-transparent box-border" style={{ height: `${hourHeight}px` }}>
+                        <div key={hour} className="relative border-b border-transparent box-border bg-white" style={{ height: `${hourHeight}px` }}>
                             <span className="absolute -top-2.5 right-1 md:right-2 text-[10px] md:text-xs text-gray-400 font-medium">
                                 {hour === 0 ? '' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour-12} PM`}
                             </span>
                         </div>
                     ))}
+                    
+                    {/* Time Indicator Label & Dot - Stick to Left Axis */}
+                    {(isSameDay(now, days[0]) || days.length > 1) && (
+                        <div className="absolute right-0 z-50 pointer-events-none flex items-center justify-end pr-2" style={{ top: `${redLineTop}px`, transform: 'translateY(-50%)', width: '100%' }}>
+                             <span className="text-[9px] md:text-[10px] font-bold bg-red-500 text-white px-1.5 py-0.5 rounded shadow-sm relative z-20">
+                                {now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                            <div className="absolute -right-[5px] w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white z-10"></div>
+                        </div>
+                    )}
                 </div>
 
-                <div className="flex-1 grid relative" style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}>
+                {/* Grid Columns */}
+                <div className={`flex-1 grid relative ${gridMinWidth}`} style={{ gridTemplateColumns: `repeat(${days.length}, 1fr)` }}>
                     <div className="absolute inset-0 z-0 pointer-events-none flex flex-col">
                         {hours.map(h => (
                             <div key={h} className="border-b border-gray-100 w-full box-border" style={{ height: `${hourHeight}px` }}>
@@ -416,10 +455,17 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                         ))}
                     </div>
 
+                    {/* Red Line - Expands with grid content */}
+                    {(isSameDay(now, days[0]) || days.length > 1) && (
+                        <div className="absolute left-0 right-0 z-30 pointer-events-none" style={{ top: `${redLineTop}px` }}>
+                            <div className="h-[2px] bg-red-500 w-full shadow-[0_1px_2px_rgba(239,68,68,0.3)]"></div>
+                        </div>
+                    )}
+
                     {days.map(day => (
                         <div 
                             key={day.toISOString()} 
-                            className="relative border-r border-gray-100 last:border-0 z-10 h-full"
+                            className={`relative border-r border-gray-100 last:border-0 z-10 h-full ${minColWidth}`}
                             onDragOver={handleDragOver}
                             onDrop={(e) => handleDropOnDay(e, day)}
                         >
@@ -562,61 +608,79 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col relative bg-white">
-      {/* Refactored Header */}
-      <div className="flex flex-col md:flex-row justify-between items-center p-4 border-b border-gray-200 bg-white z-20 gap-4 flex-shrink-0">
-          {/* Left: Navigation */}
-          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                  <button onClick={() => navigate('prev')} className="p-1 hover:bg-white rounded-md text-gray-500 hover:text-black transition-colors shadow-sm hover:shadow"><ChevronLeft size={16} /></button>
-                  <button onClick={() => setCurrentDate(new Date())} className="px-3 text-xs font-bold text-gray-700 hover:text-black uppercase tracking-wider">Today</button>
-                  <button onClick={() => navigate('next')} className="p-1 hover:bg-white rounded-md text-gray-500 hover:text-black transition-colors shadow-sm hover:shadow"><ChevronRight size={16} /></button>
-              </div>
-              <h2 className="text-xl font-bold text-gray-900 tracking-tight">
-                  {currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-              </h2>
-          </div>
-
-          {/* Center: Mode Pill */}
-          <div className="flex bg-gray-100 p-1 rounded-xl shadow-inner">
-              <button 
-                  onClick={() => setMode('scheduled')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'scheduled' ? 'bg-white text-black shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
-              >
-                  <LayoutGrid size={16} /> Plan
-              </button>
-              <button 
-                  onClick={() => setMode('focus')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'focus' ? 'bg-white text-black shadow-md' : 'text-gray-500 hover:text-gray-900'}`}
-              >
-                  <Focus size={16} /> Focus
-              </button>
-              <div className="w-px h-6 bg-gray-300 mx-1 self-center"></div>
-              <button 
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${isSidebarOpen ? 'bg-black text-white shadow-md' : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'}`}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDropOnLibrary}
-              >
-                  <PanelLeft size={16} /> Library
-              </button>
-          </div>
-
-          {/* Right: Zoom & View */}
-          <div className="flex items-center gap-4 w-full md:w-auto justify-end">
-              {view !== 'month' && (
-                  <div className="flex items-center gap-1 text-gray-400">
-                      <button onClick={() => setHourHeight(Math.max(40, hourHeight - 10))} className="p-2 hover:bg-gray-100 rounded-full hover:text-black transition-colors"><ZoomOut size={18}/></button>
-                      <button onClick={() => setHourHeight(Math.min(150, hourHeight + 10))} className="p-2 hover:bg-gray-100 rounded-full hover:text-black transition-colors"><ZoomIn size={18}/></button>
+      {/* Revised Header for Mobile: Rows layout */}
+      <div className="flex flex-col gap-4 p-4 border-b border-gray-200 bg-white z-20 flex-shrink-0">
+          
+          {/* Top Row: Navigation */}
+          <div className="flex items-center justify-between w-full">
+               <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+                  <div className="flex bg-gray-100 rounded-lg p-1">
+                      <button onClick={() => navigate('prev')} className="p-1 hover:bg-white rounded-md text-gray-500 hover:text-black transition-colors shadow-sm hover:shadow"><ChevronLeft size={16} /></button>
+                      <button onClick={() => setCurrentDate(new Date())} className="px-3 text-xs font-bold text-gray-700 hover:text-black uppercase tracking-wider">Today</button>
+                      <button onClick={() => navigate('next')} className="p-1 hover:bg-white rounded-md text-gray-500 hover:text-black transition-colors shadow-sm hover:shadow"><ChevronRight size={16} /></button>
                   </div>
-              )}
+                  <h2 className="text-lg md:text-xl font-bold text-gray-900 tracking-tight whitespace-nowrap">
+                      {currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                  </h2>
+               </div>
+               
+               {/* Desktop Zoom Controls */}
+               <div className="hidden md:flex items-center gap-4">
+                  {view !== 'month' && (
+                      <div className="flex items-center gap-1 text-gray-400">
+                          <button onClick={() => setHourHeight(Math.max(40, hourHeight - 10))} className="p-2 hover:bg-gray-100 rounded-full hover:text-black transition-colors"><ZoomOut size={18}/></button>
+                          <button onClick={() => setHourHeight(Math.min(150, hourHeight + 10))} className="p-2 hover:bg-gray-100 rounded-full hover:text-black transition-colors"><ZoomIn size={18}/></button>
+                      </div>
+                  )}
+               </div>
+          </div>
+
+          {/* Bottom Row: Panels */}
+          <div className="flex items-center justify-between w-full gap-2">
+              
+              {/* Mode Toggles */}
+              <div className="flex bg-gray-100 p-1 rounded-xl shadow-inner flex-1 md:flex-none justify-between md:justify-start">
+                  <button 
+                      onClick={() => setMode('scheduled')}
+                      className={`flex items-center justify-center gap-2 rounded-lg text-sm font-bold transition-all ${mode === 'scheduled' ? 'bg-white text-black shadow-md px-3 md:px-4 py-2' : 'text-gray-500 hover:text-gray-900 px-2 md:px-4 py-2'}`}
+                  >
+                      <LayoutGrid size={16} /> {mode === 'scheduled' && <span>Plan</span>}
+                  </button>
+                  <button 
+                      onClick={() => setMode('focus')}
+                      className={`flex items-center justify-center gap-2 rounded-lg text-sm font-bold transition-all ${mode === 'focus' ? 'bg-white text-black shadow-md px-3 md:px-4 py-2' : 'text-gray-500 hover:text-gray-900 px-2 md:px-4 py-2'}`}
+                  >
+                      <Focus size={16} /> {mode === 'focus' && <span>Focus</span>}
+                  </button>
+                  <div className="w-px h-6 bg-gray-300 mx-1 self-center"></div>
+                  <button 
+                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                      className={`flex items-center justify-center gap-2 rounded-lg text-sm font-bold transition-all z-50 ${
+                          isDraggingOverLibrary 
+                              ? 'bg-red-500 text-white shadow-md scale-105 ring-2 ring-red-300 px-3 md:px-4 py-2' 
+                              : isSidebarOpen 
+                                  ? 'bg-black text-white shadow-md px-3 md:px-4 py-2' 
+                                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50 px-2 md:px-4 py-2'
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setIsDraggingOverLibrary(true); }}
+                      onDragLeave={(e) => { e.preventDefault(); setIsDraggingOverLibrary(false); }}
+                      onDrop={handleDropOnLibrary}
+                  >
+                      {isDraggingOverLibrary ? <X size={16} /> : <PanelLeft size={16} />} 
+                      {isSidebarOpen && <span>{isDraggingOverLibrary ? 'Drop' : 'Library'}</span>}
+                  </button>
+              </div>
+
+              {/* View Toggles */}
               <div className="flex bg-gray-100 p-1 rounded-lg">
                   {(['day', 'week', 'month'] as CalendarView[]).map(v => (
                       <button 
                           key={v} 
                           onClick={() => setView(v)}
-                          className={`px-4 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${view === v ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:text-gray-900'}`}
+                          className={`px-3 md:px-4 py-1.5 text-xs font-bold uppercase rounded-md transition-all ${view === v ? 'bg-white shadow-sm text-black' : 'text-gray-500 hover:text-gray-900'}`}
                       >
-                          {v}
+                          <span className="md:hidden">{v.charAt(0).toUpperCase()}</span>
+                          <span className="hidden md:inline">{v}</span>
                       </button>
                   ))}
               </div>
@@ -626,7 +690,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
       <div className="flex-1 flex overflow-hidden relative min-h-0">
           {/* Sidebar Library - Refactored to relative flex item with transition */}
           <div 
-              className={`border-r border-gray-200 bg-white flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col ${isSidebarOpen ? 'w-72 opacity-100' : 'w-0 border-r-0 opacity-0'}`}
+              className={`border-r border-gray-200 bg-white flex-shrink-0 transition-all duration-300 ease-in-out overflow-hidden flex flex-col absolute md:relative z-[60] h-full ${isSidebarOpen ? 'w-72 opacity-100 shadow-2xl md:shadow-none' : 'w-0 border-r-0 opacity-0'}`}
           >
                {/* Fixed width container to prevent squishing content during transition */}
                <div className="w-72 flex flex-col h-full">
@@ -635,16 +699,6 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                        <button onClick={() => setIsSidebarOpen(false)} className="p-1.5 text-gray-400 hover:text-black rounded-full hover:bg-gray-200 transition-colors"><X size={16}/></button>
                    </div>
                    
-                   {/* Drop Zone for Unscheduling */}
-                   <div 
-                       className="p-6 m-4 border-2 border-dashed border-red-200 bg-red-50 rounded-xl flex flex-col items-center justify-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider transition-colors hover:bg-red-100 hover:border-red-300 group cursor-default"
-                       onDragOver={handleDragOver}
-                       onDrop={handleDropOnLibrary}
-                   >
-                       <div className="bg-white p-2 rounded-full shadow-sm text-red-200 group-hover:text-red-500 transition-colors"><X size={20} /></div>
-                       <span>Drag here to Unschedule</span>
-                   </div>
-
                    <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                        <div>
                            <div className="flex justify-between items-center mb-2 px-1">

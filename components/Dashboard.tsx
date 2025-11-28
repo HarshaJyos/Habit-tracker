@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Task, Routine, ViewState, Note, FocusSession, JournalEntry, Mood } from '../types';
 import { 
@@ -336,7 +335,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Activity Details Popup - Full Screen Blur Overlay */}
       {selectedActivity && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-fade-in">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm animate-fade-in">
               <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                   <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                       <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Activity Details</h2>

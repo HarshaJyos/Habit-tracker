@@ -1,6 +1,3 @@
-
-
-
 import * as React from 'react';
 import { Task, Priority, Subtask, Dump, Project, RecurrenceConfig, Reminder } from '../types';
 import { Plus, Trash2, Check, Play, ChevronDown, ChevronRight, CheckSquare, Calendar, Clock, Filter, List, AlignLeft, X, Save, MoreHorizontal, Palette, Archive, RefreshCcw, Briefcase, ArrowDownAZ, ArrowUpNarrowWide, Bell, Repeat, CalendarClock } from 'lucide-react';
@@ -344,7 +341,7 @@ export const TaskModule: React.FC<TaskModuleProps> = ({
           <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white/50 rounded-t-2xl backdrop-blur-sm sticky top-0 z-10">
               <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${priority === 'High' ? 'bg-red-500' : priority === 'Medium' ? 'bg-orange-500' : 'bg-blue-500'}`} />
-                  <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide">{title}</h3>
+                  <h3 className="font-bold text-gray-900 text-sm uppercase tracking-wide flex-1 text-left">{title}</h3>
                   <span className="text-xs text-gray-400 font-mono bg-white px-2 py-0.5 rounded-full border border-gray-100">{count}</span>
               </div>
           </div>
@@ -359,7 +356,7 @@ export const TaskModule: React.FC<TaskModuleProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col relative bg-white">
-      <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0 bg-white z-20">
+      <div className="px-6 py-4 border-b border-gray-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0 bg-white z-20">
         <div className="flex items-center gap-4 overflow-x-auto w-full md:w-auto no-scrollbar">
             <h2 className="text-2xl font-bold text-gray-900 tracking-tight">Tasks</h2>
             {showArchived && <span className="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider">Archived</span>}
@@ -375,7 +372,9 @@ export const TaskModule: React.FC<TaskModuleProps> = ({
         
         <div className="flex items-center gap-2">
             <button onClick={() => setShowArchived(!showArchived)} className={`p-2 rounded-full transition-all ${showArchived ? 'bg-orange-100 text-orange-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'}`} title={showArchived ? "View Active" : "View Archive"}><Archive size={20} /></button>
-            <button onClick={() => openModal()} className="bg-black hover:bg-gray-800 text-white px-5 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-lg shadow-gray-200 text-sm"><Plus size={16} /> New Task</button>
+            <button onClick={() => openModal()} className="bg-black hover:bg-gray-800 text-white px-3 md:px-5 py-2 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-lg shadow-gray-200 text-sm">
+                <Plus size={16} /> <span className="hidden md:inline">New Task</span>
+            </button>
         </div>
       </div>
 
@@ -428,7 +427,7 @@ export const TaskModule: React.FC<TaskModuleProps> = ({
 
       {/* Modal */}
       {isModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
                 <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{editingTaskId ? 'Edit Task' : 'New Task'}</h2>

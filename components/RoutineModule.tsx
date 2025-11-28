@@ -1,5 +1,3 @@
-
-
 import * as React from 'react';
 import { Routine, RoutineStep, Task, Habit, PausedRoutine, Reminder } from '../types';
 import { Play, Plus, Trash2, X, ListPlus, Repeat, CalendarClock, ChevronUp, ChevronDown, Edit2, Clock, Zap, Archive, RefreshCcw, CheckCircle, PauseCircle, Timer, Bell, GripVertical, Pin } from 'lucide-react';
@@ -194,8 +192,8 @@ export const RoutineModule: React.FC<RoutineModuleProps> = ({
                 >
                     <Archive size={20} />
                 </button>
-                <button onClick={() => openEditor()} className="bg-black hover:bg-gray-800 text-white px-5 py-2.5 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-lg shadow-gray-200">
-                    <Plus size={18} /> New Flow
+                <button onClick={() => openEditor()} className="bg-black hover:bg-gray-800 text-white px-3 md:px-5 py-2.5 rounded-xl flex items-center gap-2 transition-colors font-medium shadow-lg shadow-gray-200">
+                    <Plus size={18} /> <span className="hidden md:inline">New Flow</span>
                 </button>
             </div>
         </div>
@@ -321,7 +319,7 @@ export const RoutineModule: React.FC<RoutineModuleProps> = ({
 
       {/* --- Modal --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
             <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                 <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">{editingId ? 'Edit Routine' : 'New Routine'}</h2>

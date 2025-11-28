@@ -1,4 +1,3 @@
-
 import * as React from 'react';
 import { Download, Upload, Trash2, AlertTriangle, HardDrive, RefreshCw, Database } from 'lucide-react';
 
@@ -17,7 +16,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ onExport, onImpo
             <h2 className="text-3xl font-bold text-gray-900 tracking-tight flex items-center gap-3">
               <Database className="text-black" size={32} /> Data & Settings
             </h2>
-            <p className="text-gray-500 mt-2 text-lg">Manage your local data, backups, and application state.</p>
+            <p className="text-gray-500 mt-2 text-lg hidden md:block">Manage your local data, backups, and application state.</p>
         </div>
 
         {/* Data Management Section */}
