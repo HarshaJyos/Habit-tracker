@@ -696,6 +696,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
         </div>
+        <div className="h-16"></div>
       </div>
 
       {/* Activity Details Popup - Full Screen Blur Overlay */}
