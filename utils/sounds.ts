@@ -1,8 +1,8 @@
 // utils/sounds.ts
 
 export const SOUND_PATHS = {
-  TIMER_START: 'https://actions.google.com/sounds/v1/science_fiction/scifi_hight_pitched_beep.ogg',
-  TIMER_END: 'https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg',
+  TIMER_START: 'https://actions.google.com/sounds/v1/impacts/glass_drop_and_roll.ogg',
+  TIMER_END: 'https://actions.google.com/sounds/v1/impacts/debris_hits.ogg',
   ROUTINE_COMPLETE: 'https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg',
   OVERTIME_TICK: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg',
   REMINDER: 'https://actions.google.com/sounds/v1/alarms/bugle_tune.ogg',
