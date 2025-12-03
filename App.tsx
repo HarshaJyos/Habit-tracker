@@ -28,6 +28,9 @@ import {
   Reminder,
 } from "./types";
 import { playSound } from "./utils/sounds";
+import { Home } from "./components/Home";
+
+CURRENT_VIEW: "lifeflow_current_view"
 
 const STORAGE_KEYS = {
   TASKS: "lifeflow_tasks",
@@ -40,6 +43,7 @@ const STORAGE_KEYS = {
   HABITS: "lifeflow_habits",
   PAUSED: "lifeflow_paused_routines",
   UI_SCALE: "lifeflow_ui_scale",
+  CURRENT_VIEW: "lifeflow_current_view",
 };
 
 const INITIAL_ROUTINES: Routine[] = [
@@ -87,7 +91,10 @@ const loadState = <T,>(key: string, fallback: T): T => {
 };
 
 const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewState>("dashboard");
+  
+  const [currentView, setCurrentView] = useState<ViewState>(() =>
+  loadState(STORAGE_KEYS.CURRENT_VIEW, "home")
+);
 
   const [tasks, setTasks] = useState<Task[]>(() =>
     loadState(STORAGE_KEYS.TASKS, [])
@@ -173,6 +180,9 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.UI_SCALE, JSON.stringify(uiScale));
   }, [uiScale]);
+  useEffect(() => {
+  localStorage.setItem(STORAGE_KEYS.CURRENT_VIEW, JSON.stringify(currentView));
+}, [currentView]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -1182,6 +1192,10 @@ const App: React.FC = () => {
   };
 
   return (
+    <>
+    {currentView === "home" ? (
+      <Home onNavigate={(view) => setCurrentView(view as ViewState)} />
+    ) : (
     <Layout
       currentView={currentView}
       onViewChange={setCurrentView}
@@ -1395,6 +1409,8 @@ const App: React.FC = () => {
         />
       )}
     </Layout>
+    )}
+  </>
   );
 };
 

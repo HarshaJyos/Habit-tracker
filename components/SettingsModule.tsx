@@ -133,7 +133,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({
         </section>
 
         <div className="text-center text-xs text-gray-400 font-mono pt-8">
-          LifeFlow v1.4 &bull; Local Storage Persisted
+          LOAH v1.4 &bull; Local Storage Persisted
         </div>
       </div>
     </div>

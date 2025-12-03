@@ -122,7 +122,7 @@ export const Layout: React.FC<LayoutProps> = ({
             <span className="font-bold text-white">L</span>
           </div>
           <h1 className="text-xl font-bold tracking-tight text-gray-900">
-            LifeFlow
+            LOAH
           </h1>
         </div>
 

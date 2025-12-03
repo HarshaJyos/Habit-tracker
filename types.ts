@@ -1,6 +1,6 @@
 
 
-export type ViewState = 'dashboard' | 'tasks' | 'routines' | 'journal' | 'routine-player' | 'calendar' | 'settings' | 'notes' | 'trash' | 'dump' | 'projects' | 'habits' | 'activity';
+export type ViewState = 'home' | 'dashboard' | 'tasks' | 'routines' | 'journal' | 'routine-player' | 'calendar' | 'settings' | 'notes' | 'trash' | 'dump' | 'projects' | 'habits' | 'activity';
 
 export type Priority = 'High' | 'Medium' | 'Low';
 
